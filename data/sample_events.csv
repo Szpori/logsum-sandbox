@@ -1,0 +1,7 @@
+timestamp,level,service,message
+2026-07-20T10:00:00,INFO,checkout-service,order placed
+2026-07-20T10:01:00,INFO,checkout-service,order confirmed
+2026-07-20T10:02:00,ERROR,cart-api,item not found
+2026-07-20T10:03:00,WARN,checkout-service,slow response
+not-a-timestamp,INFO,cart-api,health check
+2026-07-20T10:05:00,,checkout-service,unknown level row
