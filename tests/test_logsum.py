@@ -8,9 +8,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
-
 # ── helpers ─────────────────────────────────────────────────────────────────────
 
 def write_events(path: Path, rows: list, fieldnames=None) -> None:
