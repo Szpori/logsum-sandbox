@@ -1,6 +1,7 @@
 import argparse
 import csv
 import sys
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
@@ -23,7 +24,7 @@ def _normalise_service(value):
 
 
 def summarise(input_path, output_path):
-    groups = {}  # (level, service) -> {"count": int, "ts_pairs": [(parsed_dt, raw_str)]}
+    groups = defaultdict(lambda: {"count": 0, "ts_pairs": []})
 
     with open(input_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -44,12 +45,10 @@ def summarise(input_path, output_path):
             ts_raw = row.get("timestamp", "").strip()
             ts = _parse_ts(ts_raw, row_num)
 
-            key = (level, service)
-            if key not in groups:
-                groups[key] = {"count": 0, "ts_pairs": []}
-            groups[key]["count"] += 1
+            entry = groups[(level, service)]
+            entry["count"] += 1
             if ts is not None:
-                groups[key]["ts_pairs"].append((ts, ts_raw))
+                entry["ts_pairs"].append((ts, ts_raw))
 
     with open(output_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
