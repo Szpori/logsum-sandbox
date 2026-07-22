@@ -23,7 +23,7 @@ def _normalise_service(value):
     return value.strip().lower()
 
 
-def summarise(input_path, output_path):
+def summarise(input_path, output_path, min_count=1):
     groups = defaultdict(lambda: {"count": 0, "ts_pairs": []})
 
     with open(input_path, newline="", encoding="utf-8") as f:
@@ -54,6 +54,8 @@ def summarise(input_path, output_path):
         writer = csv.writer(f)
         writer.writerow(["level", "service", "count", "first_seen", "last_seen"])
         for (level, service), data in groups.items():
+            if data["count"] < min_count:
+                continue
             pairs = data["ts_pairs"]
             first_seen = min(pairs, key=lambda x: x[0])[1] if pairs else ""
             last_seen = max(pairs, key=lambda x: x[0])[1] if pairs else ""
@@ -64,13 +66,15 @@ def main():
     parser = argparse.ArgumentParser(description="Summarise events.csv logs.")
     parser.add_argument("input_csv", type=Path)
     parser.add_argument("output_csv", type=Path)
+    parser.add_argument("--min-count", type=int, default=1, metavar="N",
+                        help="Only output groups with count >= N")
     args = parser.parse_args()
 
     if not args.input_csv.exists():
         print(f"ERROR: file not found: {args.input_csv}", file=sys.stderr)
         sys.exit(1)
 
-    summarise(args.input_csv, args.output_csv)
+    summarise(args.input_csv, args.output_csv, min_count=args.min_count)
 
 
 if __name__ == "__main__":

@@ -74,6 +74,8 @@ Per group:
 | Missing required column           | Fatal error: print column name to stderr, exit 1                          |
 | Input file not found              | Fatal error: print path to stderr, exit 1                                 |
 | Duplicate rows                    | Each row is a separate event; no deduplication                            |
+| `--min-count` omitted             | Defaults to 1; all groups with count >= 1 are written (unchanged behaviour) |
+| `--min-count N` with no matches   | Write header-only `summary.csv`; exit 0                                   |
 
 ---
 
@@ -88,13 +90,14 @@ python -m src.logsum <input_csv> <output_csv>
 | `0`       | Success                            |
 | `1`       | Fatal error (file not found, missing column, empty file, unreadable input) |
 
-No optional flags in this version. `--min-count` is reserved for K 5.W.7.
+| Flag | Type | Default | Meaning |
+|------|------|---------|---------|
+| `--min-count N` | int | 1 | Only write groups whose `count >= N`. Omitting the flag writes all groups. |
 
 ---
 
 ## Out of scope
 - Filtering by date range or time window
-- `--min-count` flag (K 5.W.7)
 - JSON, TSV, or any non-CSV input format
 - Deduplication of identical rows
 - Real-time or streaming input
