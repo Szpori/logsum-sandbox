@@ -12,7 +12,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 def run_logsum(input_path, output_path):
     return subprocess.run(
         [sys.executable, "-m", "src.logsum", str(input_path), str(output_path)],
-        capture_output=True, text=True, cwd=PROJECT_ROOT,
+        capture_output=True, text=True, cwd=PROJECT_ROOT, check=False,
     )
 
 def write_csv(path, rows):
