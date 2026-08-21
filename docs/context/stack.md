@@ -28,3 +28,15 @@ treated as errors: unused imports (`F401`).
 ## Architectural constraint
 One module per concern; no circular imports. `src/logsum.py` is the sole source file.
 Adding a second module requires it to have a single, named responsibility.
+
+## Module structure — `src/logsum.py`
+
+`main()` calls four focused helpers in order:
+
+| Function | Role |
+|---|---|
+| `normalise_level(raw)` | Strip + uppercase; blank → `UNKNOWN` |
+| `normalise_service(raw)` | Strip + lowercase |
+| `parse_timestamp(raw, row_number)` | ISO 8601 parse; warns to stderr, returns `None` on failure |
+| `read_groups(reader)` | Accumulate per-`(level, service)` stats into a `defaultdict` |
+| `write_summary(groups, output_path)` | Emit one CSV row per group |

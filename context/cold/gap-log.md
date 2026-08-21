@@ -5,12 +5,12 @@ get wrong or not know to ask about.
 
 ---
 
-## Gap 1 — `--min-count` flag behavior is undefined
+## Gap 1 — `spec.md` still says `--min-count` is reserved, but it was implemented in K 5.W.7
 
-`spec.md` reserves `--min-count` for K 5.W.7 but says nothing about its semantics.
-An agent reading the spec sees a placeholder; it does not know whether the flag filters
-by count ≥ N, count > N, or something else, or whether it applies before or after
-normalisation. Do not implement this flag without reading the K 5.W.7 task brief first.
+`spec.md` was not updated after K 5.W.7 added the flag. The "Out of scope" section still
+lists `--min-count` as reserved. An agent reading `spec.md` at face value will think the
+flag doesn't exist; it does — see `src/logsum.py` and the corresponding tests. If the spec
+is ever brought back into sync with the code this entry can be removed.
 
 ---
 
