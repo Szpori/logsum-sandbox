@@ -17,6 +17,7 @@ Behaviour is unchanged across the refactor.
 
 import argparse
 import csv
+import json
 import sys
 from collections import defaultdict
 from datetime import datetime
@@ -87,6 +88,28 @@ def write_summary(groups: dict, output_path: Path) -> None:
             writer.writerow([level, service, stats["count"], first_seen, last_seen])
 
 
+def write_json_summary(groups: dict, output_path: Path) -> None:
+    """Write a summary JSON array to output_path, one object per group."""
+    rows = []
+    for (level, service), stats in groups.items():
+        if stats["timestamps"]:
+            first_seen = min(stats["timestamps"], key=lambda x: x[0])[1]
+            last_seen = max(stats["timestamps"], key=lambda x: x[0])[1]
+        else:
+            first_seen = ""
+            last_seen = ""
+        rows.append({
+            "level": level,
+            "service": service,
+            "count": stats["count"],
+            "first_seen": first_seen,
+            "last_seen": last_seen,
+        })
+    with output_path.open("w", encoding="utf-8") as fout:
+        fout.write(json.dumps(rows, ensure_ascii=False))
+        fout.write("\n")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Summarise log events CSV by level and service."
@@ -126,7 +149,14 @@ def main() -> None:
 
         groups = read_groups(reader)
 
-    write_summary(groups, output_path)
+    try:
+        if args.format == "json":
+            write_json_summary(groups, output_path)
+        else:
+            write_summary(groups, output_path)
+    except OSError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

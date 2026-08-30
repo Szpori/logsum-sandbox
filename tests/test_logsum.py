@@ -3,6 +3,7 @@ Black-box CLI tests for src.logsum.
 All tests invoke the CLI via subprocess.run.
 """
 import csv
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -181,3 +182,69 @@ def test_format_json_accepted(tmp_path):
     r = run_logsum(inp, out, "--format", "json")
     assert r.returncode == 0
     assert out.exists()
+
+
+# --- T3: dispatch + JSON behaviour ---
+
+def test_format_omitted_produces_csv(tmp_path):
+    inp, out = tmp_path / "e.csv", tmp_path / "s.csv"
+    write_csv(inp, [HDR, ["2024-01-01T10:00:00", "INFO", "svc", "m"]])
+    r = run_logsum(inp, out)
+    assert r.returncode == 0
+    assert out.read_text(encoding="utf-8").splitlines()[0] == "level,service,count,first_seen,last_seen"
+
+def test_format_csv_explicit_produces_csv(tmp_path):
+    inp, out = tmp_path / "e.csv", tmp_path / "s.csv"
+    write_csv(inp, [HDR, ["2024-01-01T10:00:00", "INFO", "svc", "m"]])
+    r = run_logsum(inp, out, "--format", "csv")
+    assert r.returncode == 0
+    assert out.read_text(encoding="utf-8").splitlines()[0] == "level,service,count,first_seen,last_seen"
+
+def test_format_json_key_shape(tmp_path):
+    inp, out = tmp_path / "e.csv", tmp_path / "s.csv"
+    write_csv(inp, [HDR, ["2024-01-01T10:00:00", "INFO", "svc", "m"]])
+    r = run_logsum(inp, out, "--format", "json")
+    assert r.returncode == 0
+    rows = json.loads(out.read_text(encoding="utf-8"))
+    assert len(rows) == 1
+    assert set(rows[0].keys()) == {"level", "service", "count", "first_seen", "last_seen"}
+
+def test_format_json_count_is_integer(tmp_path):
+    inp, out = tmp_path / "e.csv", tmp_path / "s.csv"
+    write_csv(inp, [HDR,
+        ["2024-01-01T10:00:00", "INFO", "svc", "m"],
+        ["2024-01-01T11:00:00", "INFO", "svc", "m"],
+        ["2024-01-01T12:00:00", "INFO", "svc", "m"]])
+    r = run_logsum(inp, out, "--format", "json")
+    assert r.returncode == 0
+    rows = json.loads(out.read_text(encoding="utf-8"))
+    assert rows[0]["count"] == 3
+    assert isinstance(rows[0]["count"], int)
+
+def test_format_json_unparseable_timestamps_empty(tmp_path):
+    inp, out = tmp_path / "e.csv", tmp_path / "s.csv"
+    write_csv(inp, [HDR, ["bad1", "INFO", "svc", "m"], ["bad2", "INFO", "svc", "m"]])
+    r = run_logsum(inp, out, "--format", "json")
+    assert r.returncode == 0
+    rows = json.loads(out.read_text(encoding="utf-8"))
+    assert rows[0]["first_seen"] == ""
+    assert rows[0]["last_seen"] == ""
+
+def test_format_json_out_of_order_timestamps(tmp_path):
+    inp, out = tmp_path / "e.csv", tmp_path / "s.csv"
+    write_csv(inp, [HDR,
+        ["2024-01-01T10:00:00", "INFO", "svc", "mid"],
+        ["2024-01-01T08:00:00", "INFO", "svc", "early"],
+        ["2024-01-01T12:00:00", "INFO", "svc", "late"]])
+    r = run_logsum(inp, out, "--format", "json")
+    assert r.returncode == 0
+    rows = json.loads(out.read_text(encoding="utf-8"))
+    assert rows[0]["first_seen"] == "2024-01-01T08:00:00"
+    assert rows[0]["last_seen"] == "2024-01-01T12:00:00"
+
+def test_format_json_empty_input_produces_empty_array(tmp_path):
+    inp, out = tmp_path / "e.csv", tmp_path / "s.csv"
+    write_csv(inp, [HDR])
+    r = run_logsum(inp, out, "--format", "json")
+    assert r.returncode == 0
+    assert out.read_text(encoding="utf-8").strip() == "[]"
