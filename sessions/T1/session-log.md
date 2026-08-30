@@ -55,6 +55,14 @@ json` exits 0.
 
 ---
 
+## Independent tests (K 5.D.8)
+
+- Isolation tier: A — different client, no implementation context
+- Confirmed: test session did not see `src/logsum.py`, `tests/test_logsum.py`, or session transcript
+- Result: 40 passed, 2 skipped (Windows chmod), 0 failed after fixing spec ambiguity (missing `message` column in input schema)
+
+---
+
 ## Diff summary
 
 **`src/logsum.py`** (+6 lines)
