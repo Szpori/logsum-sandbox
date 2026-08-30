@@ -11,8 +11,6 @@ import platform
 import subprocess
 import sys
 import time
-from pathlib import Path
-
 import pytest
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -23,7 +21,7 @@ PYTHON = sys.executable
 def run_logsum(input_path, output_path, *extra_args):
     """Invoke `python -m src.logsum <input> <output> [extra_args...]`."""
     cmd = [PYTHON, "-m", "src.logsum", str(input_path), str(output_path), *extra_args]
-    return subprocess.run(cmd, capture_output=True, text=True)
+    return subprocess.run(cmd, capture_output=True, text=True, check=False)
 
 
 def write_input_csv(path, rows):
