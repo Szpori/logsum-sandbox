@@ -93,7 +93,12 @@ def main() -> None:
     )
     parser.add_argument("input_csv", help="Path to input events CSV")
     parser.add_argument("output_csv", help="Path to output summary CSV")
+    parser.add_argument("--format", default="csv", metavar="{csv,json}")
     args = parser.parse_args()
+
+    if args.format not in ("csv", "json"):
+        print(f"ERROR: unsupported format: {args.format}", file=sys.stderr)
+        sys.exit(1)
 
     input_path = Path(args.input_csv)
     output_path = Path(args.output_csv)

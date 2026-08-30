@@ -9,9 +9,9 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent
 
-def run_logsum(input_path, output_path):
+def run_logsum(input_path, output_path, *extra_args):
     return subprocess.run(
-        [sys.executable, "-m", "src.logsum", str(input_path), str(output_path)],
+        [sys.executable, "-m", "src.logsum", str(input_path), str(output_path), *extra_args],
         capture_output=True, text=True, cwd=PROJECT_ROOT, check=False,
     )
 
@@ -158,3 +158,26 @@ def test_all_bad_timestamps_empty_dates(tmp_path):
     assert rows[0]["count"] == "2"
     assert rows[0]["first_seen"] == ""
     assert rows[0]["last_seen"] == ""
+
+
+# --- T1: --format argument ---
+
+def test_format_invalid_exits_one(tmp_path):
+    # Validation must fire before any file I/O; input path intentionally absent.
+    r = run_logsum(tmp_path / "nope.csv", tmp_path / "s.csv", "--format", "xml")
+    assert r.returncode == 1
+    assert "unsupported format" in r.stderr
+
+def test_format_csv_accepted(tmp_path):
+    inp, out = tmp_path / "e.csv", tmp_path / "s.csv"
+    write_csv(inp, [HDR, ["2024-01-01T10:00:00", "INFO", "svc", "m"]])
+    r = run_logsum(inp, out, "--format", "csv")
+    assert r.returncode == 0
+    assert out.exists()
+
+def test_format_json_accepted(tmp_path):
+    inp, out = tmp_path / "e.csv", tmp_path / "s.csv"
+    write_csv(inp, [HDR, ["2024-01-01T10:00:00", "INFO", "svc", "m"]])
+    r = run_logsum(inp, out, "--format", "json")
+    assert r.returncode == 0
+    assert out.exists()
