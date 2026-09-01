@@ -91,3 +91,108 @@ abstraction is present that lacks a current consumer.
 | F4 | minor | independent tests check | CSV write-path, no test |
 | F5 | minor | independent tests check | comparative timestamp test absent |
 | F6 | nit | edge cases | logsum.py:108 |
+
+---
+
+## Adversarial pass
+
+*Model: claude-sonnet-4-6. Context: src/logsum.py + tests/test_format_flag_independent.py
+(read-only) + F1–F6 summary. Findings below are net-new — none repeat F1–F6.*
+
+---
+
+### Move 1 — Pre-mortem (five root causes, most obvious → least obvious)
+
+| # | trigger | blast radius | file:line |
+|---|---------|--------------|-----------|
+| C1 | Input CSV where a single `(level, service)` group spans millions of rows; all `(datetime, str)` tuples are appended to `stats["timestamps"]` but only min/max are ever used | OOM kill; no output file written; all users running logsum on large production log files | logsum.py:71 |
+| C2 | Disk fills during `fout.write(json.dumps(rows, ...))` after the output file has already been truncated by `open("w")`; `OSError` is caught and exit 1 is returned, but the previous output file is now empty | Any monitoring job that diffs successive logsum outputs treats "empty file" as "service has no events" rather than "run failed"; false-clear on dashboards | logsum.py:108–109 |
+| C3 | Input CSV with systematically malformed timestamps (epoch integers, locale-formatted dates, empty cells) — one `print(... file=sys.stderr)` per row; stderr pipe buffer fills (~64 KB on Linux ≈ 2 000 warning lines); for 500k malformed rows the process blocks indefinitely on the next `print` call | Process hangs silently in any pipeline where stderr is consumed (`2>&1 \| tee`, log aggregators); watchdog kills after timeout; output never written | logsum.py:49 |
+| C4 | Service names embed dynamic identifiers (pod names, request IDs, tenant UUIDs); O(unique services × 4 levels) groups accumulate in `groups`; the JSON output grows proportionally | Downstream consumers with a file-size limit silently truncate or reject the output; the groups dict itself consumes unbounded memory | logsum.py:65 |
+| C5 | User passes the same path for input and output (`logsum events.csv events.csv --format json`); all rows are read into `groups` (line 150), the `with` block closes the input file (line 151), then `write_json_summary` opens and truncates the same path (line 153) | Original event CSV permanently destroyed; irreversible; no warning, no `--force` guard, no `input_path != output_path` check | logsum.py:134 → 153 |
+
+**Skipping C1** (obvious; the fix — track only running min/max — is well-known).
+
+**Strongest from C2–C5: C3.** Directly tied to a single diff line, requires only a
+routine data-quality condition (not disk-full, not user error, not cardinality explosion),
+and its failure mode is a silent hang rather than a visible error — the hardest class of
+incident to diagnose in a production pipeline.
+
+---
+
+### Move 2 — Edge-case-hunter (excluding all 42 independent-suite tests)
+
+**Candidate A — UTF-8 BOM input file**
+A CSV written by Excel or Windows Notepad with a UTF-8 BOM makes the first field name
+`'﻿timestamp'` rather than `'timestamp'`. The `REQUIRED_COLUMNS` check reports
+`ERROR: missing required column: timestamp` with no hint about encoding. Fix: open with
+`encoding="utf-8-sig"`.
+`logsum.py:144`
+
+**Candidate B — Ragged CSV row (fewer columns than header)**
+`csv.DictReader` fills missing cells with `restval=None`. A row shorter than the four-
+column header sets `row["level"]` to `None`. `normalise_level(None)` calls `None.strip()`
+→ **`AttributeError`**, uncaught by `except OSError`. Process exits with a Python traceback
+instead of the spec-required `ERROR:` message.
+`logsum.py:63` → `logsum.py:32`
+
+**★ Candidate C — Mixed timezone-aware and timezone-naive timestamps in the same group**
+`datetime.fromisoformat("2024-01-01T10:00:00")` returns a naive `datetime`;
+`datetime.fromisoformat("2024-01-01T10:00:00+05:30")` returns an aware `datetime`. Both
+parse successfully and are appended to `stats["timestamps"]`. When
+`min(stats["timestamps"], key=lambda x: x[0])` compares them, Python raises
+`TypeError: can't compare offset-naive and offset-aware datetimes`. This is not an
+`OSError` and is not caught by the `except` in `main()`. The process exits with a
+traceback — exit code 1 but wrong error format, violating the spec's §3 guarantee that
+`ERROR:` goes to stderr. Any global service whose log sources mix UTC-offset and
+naive timestamps triggers this on every run.
+`logsum.py:83` (write_summary) and `logsum.py:96` (write_json_summary)
+
+---
+
+### Resolutions
+
+**C3 — Unbounded WARNING output (`logsum.py:49`)**
+→ **Accept with documented risk.**
+This behaviour predates the diff; the refactor preserved it without change. Fixing it
+requires a spec decision out of scope for this ticket (add `--quiet`, cap per-run warning
+count, emit a summary line).
+
+*Risk statement:* WARNING output from `parse_timestamp` is unbounded — one stderr write
+per malformed row. In any pipeline where stderr is piped to a consumer (`2>&1 | tee`, a
+log aggregator), a systematically malformed input file will fill the pipe buffer and block
+the process indefinitely. Operators must redirect stderr (`2>warnings.log` or `2>/dev/null`)
+until a `--max-warnings N` or `--quiet` flag is added. Revisit at next feature iteration
+with SRE input on an acceptable warning budget.
+
+---
+
+**Candidate C — Unhandled `TypeError` from mixed-timezone group (`logsum.py:83`, `logsum.py:96`)**
+→ **Fix now.**
+The failure is an unhandled exception on production-plausible input that violates the
+spec's §3 error-format contract. The fix is a one-liner at both sites — or, better, a
+single fix inside the `_resolve_timestamps` helper that F2 already recommends extracting:
+
+```python
+try:
+    first_seen = min(stats["timestamps"], key=lambda x: x[0])[1]
+    last_seen  = max(stats["timestamps"], key=lambda x: x[0])[1]
+except TypeError:
+    first_seen = ""
+    last_seen  = ""
+```
+
+Falling back to empty strings on `TypeError` is conservative and spec-safe: the spec only
+guarantees chronological min/max for parseable, comparable timestamps; a mixed-timezone
+group is neither.
+
+---
+
+### Verdict after adversarial pass
+
+**Updated verdict: REQUEST CHANGES** (elevated from APPROVE with minor follow-up).
+
+The elevation is driven solely by Candidate C (Move 2): an unhandled `TypeError` on
+production-plausible input that exits with a traceback rather than the spec-required
+`ERROR:` message. The C3 risk (WARNING flood) is accepted and documented above; it does
+not change the verdict. All F1–F6 findings stand unchanged.
