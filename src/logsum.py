@@ -73,18 +73,30 @@ def read_groups(reader: csv.DictReader) -> dict:
     return groups
 
 
+def _resolve_timestamps(stats: dict) -> tuple[str, str]:
+    """Return (first_seen, last_seen) original strings for a group's stats.
+
+    Returns ("", "") when there are no parseable timestamps or when datetime
+    comparison raises TypeError (e.g. mixing aware and naive timestamps).
+    """
+    if not stats["timestamps"]:
+        return "", ""
+    try:
+        first_seen = min(stats["timestamps"], key=lambda x: x[0])[1]
+        last_seen = max(stats["timestamps"], key=lambda x: x[0])[1]
+    except TypeError:
+        first_seen = ""
+        last_seen = ""
+    return first_seen, last_seen
+
+
 def write_summary(groups: dict, output_path: Path) -> None:
     """Write a summary CSV to output_path, one row per group."""
     with output_path.open("w", newline="", encoding="utf-8") as fout:
         writer = csv.writer(fout)
         writer.writerow(OUTPUT_HEADER)
         for (level, service), stats in groups.items():
-            if stats["timestamps"]:
-                first_seen = min(stats["timestamps"], key=lambda x: x[0])[1]
-                last_seen = max(stats["timestamps"], key=lambda x: x[0])[1]
-            else:
-                first_seen = ""
-                last_seen = ""
+            first_seen, last_seen = _resolve_timestamps(stats)
             writer.writerow([level, service, stats["count"], first_seen, last_seen])
 
 
@@ -92,12 +104,7 @@ def write_json_summary(groups: dict, output_path: Path) -> None:
     """Write a summary JSON array to output_path, one object per group."""
     rows = []
     for (level, service), stats in groups.items():
-        if stats["timestamps"]:
-            first_seen = min(stats["timestamps"], key=lambda x: x[0])[1]
-            last_seen = max(stats["timestamps"], key=lambda x: x[0])[1]
-        else:
-            first_seen = ""
-            last_seen = ""
+        first_seen, last_seen = _resolve_timestamps(stats)
         rows.append({
             "level": level,
             "service": service,
