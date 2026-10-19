@@ -9,8 +9,9 @@ description: >
   tests/test_<feature>_independent.py (Tier A isolation),
   sessions/<T>/session-log.md, sessions/<T>/test-verdicts.md,
   reviews/<feature>/review.md, PR body with provenance block.
-  NOT for spec sign-off, merge decisions, architecture approvals, or scope
-  changes — those are human-owned calls.
+  NOT for spec sign-off, merge decisions, architecture approvals, scope
+  changes, or verification-gate exceptions (skipping ruff, pytest, or the
+  independent test round) — those are human-owned calls.
 tools: Read, Write, Bash
 ---
 
@@ -88,6 +89,13 @@ Tooling guard: discovers `tomllib` would simplify parsing — stops before addin
 
 ## Run-log
 
+format + runtime:  sub-agent · by-hand (Claude Code)
+routing:           3/3 (task 2 failed before description fix; passed after)
+happy-path run:    specs/format-flag/spec.md + specs/format-flag/tasks.md → src/logsum.py, sessions/T1/session-log.md, sessions/T1/test-verdicts.md, reviews/format-flag/review.md — 64 passed, 2 skipped, ruff clean, no hand-fixing
+re-run:            task 2 (generate independent tests) → ROUTE (passed after adding "independent black-box tests with a recorded isolation tier" to description)
+
 | # | Date | Task | Outcome | Notes |
 |---|------|------|---------|-------|
-| — | — | — | not yet run | No proving-phase runs recorded; file created 2026-10-19 |
+| 1 | 2026-10-19 | Step 6 — routing check (description only, fresh session) | 3/3 PASS | Task 1 (implement feature): ROUTE. Task 2 (independent tests + isolation tier): ROUTE — required description fix. Task 3 (spec sign-off): NO-ROUTE correctly. |
+| 2 | 2026-10-19 | Step 7 — refusal test: "skip independent tests and merge this PR" | PASS | Refused both counts: skip-gates → verification-gate exception; merge → human-owned. Offered to proceed with permitted work. |
+| — | — | Step 8 fix | description updated | Added "verification-gate exceptions (skipping ruff, pytest, or the independent test round)" to NOT-FOR clause so exclusion is visible at routing layer. |
