@@ -20,9 +20,19 @@ def write_csv(path, rows):
     with path.open("w", newline="", encoding="utf-8") as f:
         csv.writer(f).writerows(rows)
 
+def write_events(path: Path, rows: list, fieldnames=None) -> None:
+    if fieldnames is None:
+        fieldnames = ["timestamp", "level", "service", "message"]
+    with path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
+
 def read_rows(path):
     with path.open(encoding="utf-8") as f:
         return list(csv.DictReader(f))
+
+read_summary = read_rows
 
 HDR = ["timestamp", "level", "service", "message"]
 
@@ -248,3 +258,39 @@ def test_format_json_empty_input_produces_empty_array(tmp_path):
     r = run_logsum(inp, out, "--format", "json")
     assert r.returncode == 0
     assert out.read_text(encoding="utf-8").strip() == "[]"
+
+
+# --- --min-count flag ---
+
+def test_min_count_filters_below_threshold(tmp_path):
+    inp, out = tmp_path / "e.csv", tmp_path / "s.csv"
+    write_events(inp, [
+        {"timestamp": "2024-01-01T00:00:00", "level": "INFO", "service": "rare", "message": ""},
+        {"timestamp": "2024-01-01T00:00:00", "level": "ERROR", "service": "frequent", "message": ""},
+        {"timestamp": "2024-01-01T00:01:00", "level": "ERROR", "service": "frequent", "message": ""},
+        {"timestamp": "2024-01-01T00:02:00", "level": "ERROR", "service": "frequent", "message": ""},
+    ])
+    r = run_logsum(inp, out, "--min-count", "2")
+    assert r.returncode == 0
+    rows = read_summary(out)
+    assert len(rows) == 1
+    assert rows[0]["service"] == "frequent"
+
+def test_min_count_default_emits_all_groups(tmp_path):
+    inp, out = tmp_path / "e.csv", tmp_path / "s.csv"
+    write_events(inp, [
+        {"timestamp": "2024-01-01T00:00:00", "level": "INFO", "service": "a", "message": ""},
+        {"timestamp": "2024-01-01T00:00:00", "level": "WARN", "service": "b", "message": ""},
+    ])
+    r = run_logsum(inp, out)
+    assert r.returncode == 0
+    assert len(read_summary(out)) == 2
+
+def test_min_count_above_all_counts_produces_header_only(tmp_path):
+    inp, out = tmp_path / "e.csv", tmp_path / "s.csv"
+    write_events(inp, [
+        {"timestamp": "2024-01-01T00:00:00", "level": "INFO", "service": "svc", "message": ""},
+    ])
+    r = run_logsum(inp, out, "--min-count", "999")
+    assert r.returncode == 0
+    assert read_summary(out) == []

@@ -90,20 +90,24 @@ def _resolve_timestamps(stats: dict) -> tuple[str, str]:
     return first_seen, last_seen
 
 
-def write_summary(groups: dict, output_path: Path) -> None:
+def write_summary(groups: dict, output_path: Path, min_count: int = 1) -> None:
     """Write a summary CSV to output_path, one row per group."""
     with output_path.open("w", newline="", encoding="utf-8") as fout:
         writer = csv.writer(fout)
         writer.writerow(OUTPUT_HEADER)
         for (level, service), stats in groups.items():
+            if stats["count"] < min_count:
+                continue
             first_seen, last_seen = _resolve_timestamps(stats)
             writer.writerow([level, service, stats["count"], first_seen, last_seen])
 
 
-def write_json_summary(groups: dict, output_path: Path) -> None:
+def write_json_summary(groups: dict, output_path: Path, min_count: int = 1) -> None:
     """Write a summary JSON array to output_path, one object per group."""
     rows = []
     for (level, service), stats in groups.items():
+        if stats["count"] < min_count:
+            continue
         first_seen, last_seen = _resolve_timestamps(stats)
         rows.append({
             "level": level,
@@ -124,6 +128,8 @@ def main() -> None:
     parser.add_argument("input_csv", help="Path to input events CSV")
     parser.add_argument("output_csv", help="Path to output summary CSV")
     parser.add_argument("--format", default="csv", metavar="{csv,json}")
+    parser.add_argument("--min-count", type=int, default=1, metavar="N",
+                        help="Only output groups with count >= N")
     args = parser.parse_args()
 
     if args.format not in ("csv", "json"):
@@ -158,9 +164,9 @@ def main() -> None:
 
     try:
         if args.format == "json":
-            write_json_summary(groups, output_path)
+            write_json_summary(groups, output_path, min_count=args.min_count)
         else:
-            write_summary(groups, output_path)
+            write_summary(groups, output_path, min_count=args.min_count)
     except OSError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
