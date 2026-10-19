@@ -1,0 +1,19 @@
+name: test-file-guard
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  check-test-deletion:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Guard against silent test deletion
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash scripts/ci/check-test-deletion.sh
