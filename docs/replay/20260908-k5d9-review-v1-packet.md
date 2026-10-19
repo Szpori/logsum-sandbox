@@ -1,3 +1,5 @@
+Sensitivity: internal
+
 # Replay packet — K 5.D.9 review attempt v1
 
 **Run ID:** `20260908-k5d9-review-v1`  
@@ -125,3 +127,22 @@ session defaulted to the largest file.
 | Multiple artefacts in context | Always open the prompt with `"Review <specific-file>."` — not a task description that the session must interpret |
 | Framework referenced by name only | Paste the lens list inline or link to a definition the session can read; names alone are not definitions |
 | Wrong-artefact failure | Read the `Artefact reviewed:` header before reading any findings — it is a fast reject signal |
+
+---
+
+## 7. Redactions applied
+
+- None
+
+---
+
+## 8. Model and client metadata
+
+| Field | Value |
+|-------|-------|
+| Client | Claude Code (CLI) |
+| Model / version | claude-sonnet-4-6 |
+| Date / time | 2026-09-08 (approximate — exact timestamp not recoverable; session output was discarded before commit) |
+| Mode | Supervised — human reviewed output immediately after delivery |
+| Isolation | Tier A — fresh session with no prior conversation context |
+| Limitation | This packet is a reconstruction. The failed session's full output was not persisted to disk or committed to the repo; the offending header and lens names are recovered from the conversation record of the supervising session, not from the original session transcript. |
